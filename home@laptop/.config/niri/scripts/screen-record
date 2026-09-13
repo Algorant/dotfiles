@@ -1,0 +1,580 @@
+#!/usr/bin/env bash
+
+set -Eeuo pipefail
+umask 077
+
+APP_NAME="Screen Recorder"
+SCRIPT_PATH="$(readlink -f "${BASH_SOURCE[0]}")"
+RECORDING_DIR="${SCREEN_RECORD_DIR:-${HOME}/Videos/Recordings}"
+RUNTIME_BASE="${XDG_RUNTIME_DIR:-/run/user/${UID}}"
+STATE_DIR="${XDG_STATE_HOME:-${HOME}/.local/state}/screen-recorder"
+
+if [[ ! -d "${RUNTIME_BASE}" || ! -O "${RUNTIME_BASE}" ]]; then
+    printf 'screen-record: no secure user runtime directory is available\n' >&2
+    exit 1
+fi
+
+RUNTIME_DIR="${RUNTIME_BASE}/screen-recorder-${UID}"
+LOG_FILE="${STATE_DIR}/last.log"
+LOCK_FILE="${RUNTIME_DIR}/control.lock"
+PID_FILE="${RUNTIME_DIR}/recorder.pid"
+START_FILE="${RUNTIME_DIR}/recorder.start"
+PATH_FILE="${RUNTIME_DIR}/recording.path"
+AUDIO_FILE="${RUNTIME_DIR}/recording.audio"
+TARGET_FILE="${RUNTIME_DIR}/recording.target"
+MODULES_FILE="${RUNTIME_DIR}/audio.modules"
+
+mkdir -p "${RECORDING_DIR}" "${RUNTIME_DIR}" "${STATE_DIR}"
+chmod 700 "${RUNTIME_DIR}" "${STATE_DIR}"
+
+notify() {
+    local urgency="$1"
+    local title="$2"
+    local body="${3:-}"
+
+    if command -v notify-send >/dev/null 2>&1; then
+        notify-send -u "${urgency}" -a "${APP_NAME}" "${title}" "${body}" >/dev/null 2>&1 || true
+    fi
+}
+
+usage() {
+    cat <<'EOF'
+Usage:
+  screen-record [toggle] [--audio MODE] [--region | --output NAME]
+  screen-record start    [--audio MODE] [--region | --output NAME]
+  screen-record stop
+  screen-record status
+
+Actions:
+  toggle        Stop the active recording, or start a new one (default).
+  start         Start a recording and fail if one is already active.
+  stop          Stop and finalize the active recording.
+  status        Print the current recording state.
+
+Options:
+  --audio MODE  none (default), desktop, mic, or both.
+  --region      Select a region with slurp.
+  --output NAME Record one named output. The focused output is the default.
+  -h, --help    Show this help.
+
+Examples:
+  screen-record
+  screen-record start --audio desktop
+  screen-record start --audio both --region
+EOF
+}
+
+require_command() {
+    command -v "$1" >/dev/null 2>&1 || fail "Missing dependency: $1"
+}
+
+fail() {
+    local message="$1"
+    printf 'screen-record: %s\n' "${message}" >&2
+    printf 'Error: %s\n' "${message}" >> "${LOG_FILE}" 2>/dev/null || true
+    notify critical "Recording failed" "${message}. See ${LOG_FILE}"
+    exit 1
+}
+
+read_state() {
+    local file="$1"
+    [[ -r "${file}" ]] && IFS= read -r REPLY < "${file}"
+}
+
+process_start_time() {
+    local pid="$1"
+    [[ -r "/proc/${pid}/stat" ]] || return 1
+    awk '{ print $22 }' "/proc/${pid}/stat"
+}
+
+process_has_identity() {
+    local pid="$1"
+    local expected_start="$2"
+    local current_start executable state
+
+    [[ "${pid}" =~ ^[0-9]+$ && "${expected_start}" =~ ^[0-9]+$ ]] || return 1
+    kill -0 "${pid}" 2>/dev/null || return 1
+
+    state="$(awk '{ print $3 }' "/proc/${pid}/stat" 2>/dev/null || true)"
+    [[ "${state}" != "Z" && -n "${state}" ]] || return 1
+
+    executable="$(readlink -f "/proc/${pid}/exe" 2>/dev/null || true)"
+    [[ "${executable##*/}" == "wl-screenrec" ]] || return 1
+
+    current_start="$(process_start_time "${pid}" 2>/dev/null || true)"
+    [[ -n "${current_start}" && "${current_start}" == "${expected_start}" ]]
+}
+
+recorder_is_running() {
+    local pid saved_start
+
+    read_state "${PID_FILE}" || return 1
+    pid="${REPLY}"
+    read_state "${START_FILE}" || return 1
+    saved_start="${REPLY}"
+    process_has_identity "${pid}" "${saved_start}"
+}
+
+module_argument_for_id() {
+    local module_id="$1"
+
+    pactl list modules | awk -v target="${module_id}" '
+        /^Module #[0-9]+/ {
+            current = (substr($2, 2) == target)
+        }
+        current && /^[[:space:]]*Argument:/ {
+            line = $0
+            sub(/^[[:space:]]*Argument:[[:space:]]*/, "", line)
+            argument = line
+        }
+        END {
+            if (argument != "") print argument
+        }
+    '
+}
+
+cleanup_audio_modules() {
+    local -a modules=()
+    local index module_id owner argument remaining_file
+
+    [[ -r "${MODULES_FILE}" ]] || return 0
+    command -v pactl >/dev/null 2>&1 || return 0
+
+    mapfile -t modules < "${MODULES_FILE}"
+    remaining_file="$(mktemp "${RUNTIME_DIR}/audio.modules.XXXXXX")"
+    for ((index = ${#modules[@]} - 1; index >= 0; index--)); do
+        IFS=$'\t' read -r module_id owner <<< "${modules[index]}"
+        [[ "${module_id}" =~ ^[0-9]+$ && -n "${owner}" ]] || continue
+
+        argument="$(module_argument_for_id "${module_id}" 2>/dev/null || true)"
+        [[ "${argument}" == *"${owner}"* ]] || continue
+        if ! pactl unload-module "${module_id}" >/dev/null 2>&1; then
+            printf '%s\t%s\n' "${module_id}" "${owner}" >> "${remaining_file}"
+        fi
+    done
+
+    if [[ -s "${remaining_file}" ]]; then
+        mv "${remaining_file}" "${MODULES_FILE}"
+    else
+        rm -f "${remaining_file}" "${MODULES_FILE}"
+    fi
+}
+
+clear_runtime_state() {
+    rm -f \
+        "${PID_FILE}" \
+        "${START_FILE}" \
+        "${PATH_FILE}" \
+        "${AUDIO_FILE}" \
+        "${TARGET_FILE}"
+}
+
+clear_stale_state() {
+    recorder_is_running && return 0
+
+    if [[ -e "${PID_FILE}" || -e "${MODULES_FILE}" || -e "${PATH_FILE}" ]]; then
+        cleanup_audio_modules
+        clear_runtime_state
+    fi
+}
+
+source_exists() {
+    local wanted="$1"
+
+    pactl list short sources | awk -v wanted="${wanted}" '
+        $2 == wanted { found = 1 }
+        END { exit(found ? 0 : 1) }
+    '
+}
+
+wait_for_source() {
+    local wanted="$1"
+
+    for _ in {1..20}; do
+        source_exists "${wanted}" && return 0
+        sleep 0.05
+    done
+    return 1
+}
+
+load_audio_module() {
+    local module_id
+
+    module_id="$(pactl load-module "$@")" || fail "Could not create the temporary audio mix"
+    [[ "${module_id}" =~ ^[0-9]+$ ]] || fail "PipeWire returned an invalid audio module ID"
+    printf '%s\t%s\n' "${module_id}" "${AUDIO_OWNER}" >> "${MODULES_FILE}"
+}
+
+configure_audio() {
+    local mode="$1"
+    local default_sink default_source mix_name
+
+    AUDIO_ARGS=()
+    [[ "${mode}" != "none" ]] || return 0
+
+    require_command pactl
+
+    case "${mode}" in
+        desktop)
+            default_sink="$(pactl get-default-sink)" \
+                || fail "Could not find the default audio output"
+            AUDIO_DEVICE="${default_sink}.monitor"
+            ;;
+        mic)
+            default_source="$(pactl get-default-source)" \
+                || fail "Could not find the default microphone"
+            AUDIO_DEVICE="${default_source}"
+            ;;
+        both)
+            default_sink="$(pactl get-default-sink)" \
+                || fail "Could not find the default audio output"
+            default_source="$(pactl get-default-source)" \
+                || fail "Could not find the default microphone"
+            mix_name="screen_recorder_mix_${UID}_$$"
+            AUDIO_OWNER="${mix_name}"
+            : > "${MODULES_FILE}"
+            load_audio_module \
+                module-null-sink \
+                "sink_name=${mix_name}" \
+                "sink_properties=device.description=Screen_Recorder_Mix"
+            load_audio_module \
+                module-loopback \
+                "source=${default_sink}.monitor" \
+                "sink=${mix_name}" \
+                latency_msec=20
+            load_audio_module \
+                module-loopback \
+                "source=${default_source}" \
+                "sink=${mix_name}" \
+                latency_msec=20
+            AUDIO_DEVICE="${mix_name}.monitor"
+            ;;
+        *)
+            fail "Unknown audio mode: ${mode}"
+            ;;
+    esac
+
+    wait_for_source "${AUDIO_DEVICE}" || fail "Audio source is unavailable: ${AUDIO_DEVICE}"
+    AUDIO_ARGS=(--audio --audio-device "${AUDIO_DEVICE}")
+}
+
+recording_is_valid() {
+    local output_file="$1"
+    local video_stream
+
+    [[ -s "${output_file}" ]] || return 1
+    command -v ffprobe >/dev/null 2>&1 || return 1
+    video_stream="$(
+        ffprobe \
+            -v error \
+            -select_streams v:0 \
+            -show_entries stream=index \
+            -of csv=p=0 \
+            "${output_file}" 2>/dev/null
+    )" || return 1
+    [[ -n "${video_stream}" ]]
+}
+
+terminate_failed_start() {
+    local pid="${launched_pid:-}"
+
+    [[ "${pid}" =~ ^[0-9]+$ ]] || return 0
+    kill -0 "${pid}" 2>/dev/null || { wait "${pid}" 2>/dev/null || true; return 0; }
+
+    kill -TERM "${pid}" 2>/dev/null || true
+    for _ in {1..30}; do
+        kill -0 "${pid}" 2>/dev/null || break
+        sleep 0.1
+    done
+    if kill -0 "${pid}" 2>/dev/null; then
+        kill -KILL "${pid}" 2>/dev/null || true
+    fi
+    wait "${pid}" 2>/dev/null || true
+}
+
+cleanup_failed_start() {
+    [[ "${cleanup_after_failure:-false}" == true ]] || return 0
+    terminate_failed_start
+    cleanup_audio_modules
+    clear_runtime_state
+}
+
+stop_recording() {
+    local pid output_file audio_mode
+    local stopped=false
+
+    if ! recorder_is_running; then
+        cleanup_audio_modules
+        clear_runtime_state
+        printf 'No recording is active.\n'
+        return 0
+    fi
+
+    read_state "${PID_FILE}"
+    pid="${REPLY}"
+    read_state "${PATH_FILE}" || REPLY=""
+    output_file="${REPLY}"
+    read_state "${AUDIO_FILE}" || REPLY="none"
+    audio_mode="${REPLY}"
+
+    kill -INT "${pid}" 2>/dev/null || true
+    for _ in {1..100}; do
+        if ! recorder_is_running; then
+            stopped=true
+            break
+        fi
+        sleep 0.1
+    done
+
+    if [[ "${stopped}" != true ]]; then
+        kill -TERM "${pid}" 2>/dev/null || true
+        for _ in {1..30}; do
+            if ! recorder_is_running; then
+                stopped=true
+                break
+            fi
+            sleep 0.1
+        done
+    fi
+
+    if [[ "${stopped}" != true ]]; then
+        fail "wl-screenrec did not stop; its PID is ${pid}"
+    fi
+
+    cleanup_audio_modules
+    clear_runtime_state
+
+    if recording_is_valid "${output_file}"; then
+        printf 'Saved recording: %s\n' "${output_file}"
+        notify normal "Recording stopped" "Saved to ${output_file} (audio: ${audio_mode})"
+    else
+        fail "The recorder stopped without producing a valid video"
+    fi
+}
+
+show_status() {
+    local pid output_file audio_mode target
+
+    if ! recorder_is_running; then
+        cleanup_audio_modules
+        clear_runtime_state
+        printf 'Not recording.\nLog: %s\n' "${LOG_FILE}"
+        return 1
+    fi
+
+    read_state "${PID_FILE}"
+    pid="${REPLY}"
+    read_state "${PATH_FILE}" || REPLY="unknown"
+    output_file="${REPLY}"
+    read_state "${AUDIO_FILE}" || REPLY="unknown"
+    audio_mode="${REPLY}"
+    read_state "${TARGET_FILE}" || REPLY="unknown"
+    target="${REPLY}"
+
+    printf 'Recording.\nPID: %s\nTarget: %s\nAudio: %s\nFile: %s\nLog: %s\n' \
+        "${pid}" "${target}" "${audio_mode}" "${output_file}" "${LOG_FILE}"
+}
+
+watch_recording() {
+    local expected_pid="$1"
+    local expected_start="$2"
+    local current_pid current_start output_file audio_mode
+
+    while process_has_identity "${expected_pid}" "${expected_start}"; do
+        sleep 0.5
+    done
+
+    exec 8>"${LOCK_FILE}"
+    flock 8
+
+    read_state "${PID_FILE}" || return 0
+    current_pid="${REPLY}"
+    read_state "${START_FILE}" || return 0
+    current_start="${REPLY}"
+    [[ "${current_pid}" == "${expected_pid}" && "${current_start}" == "${expected_start}" ]] \
+        || return 0
+
+    read_state "${PATH_FILE}" || REPLY=""
+    output_file="${REPLY}"
+    read_state "${AUDIO_FILE}" || REPLY="none"
+    audio_mode="${REPLY}"
+
+    cleanup_audio_modules
+    clear_runtime_state
+
+    if recording_is_valid "${output_file}"; then
+        printf 'Recorder exited outside screen-record; file finalized successfully.\n' >> "${LOG_FILE}"
+        notify normal "Recording ended" "Saved to ${output_file} (audio: ${audio_mode})"
+    else
+        printf 'Recorder exited unexpectedly and the output did not validate.\n' >> "${LOG_FILE}"
+        notify critical "Recording failed" "wl-screenrec exited unexpectedly. See ${LOG_FILE}"
+    fi
+}
+
+if [[ "${1:-}" == "__watch" ]]; then
+    [[ $# -eq 3 ]] || exit 2
+    watch_recording "$2" "$3"
+    exit 0
+fi
+
+action="toggle"
+audio_mode="none"
+select_region=false
+output_name=""
+
+if [[ $# -gt 0 && "$1" != -* ]]; then
+    action="$1"
+    shift
+fi
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --audio)
+            [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+            audio_mode="$2"
+            shift 2
+            ;;
+        --region)
+            select_region=true
+            shift
+            ;;
+        --output)
+            [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+            output_name="$2"
+            shift 2
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            printf 'screen-record: unknown option: %s\n' "$1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
+
+case "${action}" in
+    toggle|start|stop|status) ;;
+    -h|--help|help)
+        usage
+        exit 0
+        ;;
+    *)
+        printf 'screen-record: unknown action: %s\n' "${action}" >&2
+        usage >&2
+        exit 2
+        ;;
+esac
+
+if [[ "${select_region}" == true && -n "${output_name}" ]]; then
+    fail "--region and --output cannot be used together"
+fi
+
+case "${audio_mode}" in
+    none|desktop|mic|both) ;;
+    *) fail "Unknown audio mode: ${audio_mode}" ;;
+esac
+
+require_command flock
+exec 9>"${LOCK_FILE}"
+flock 9
+clear_stale_state
+
+case "${action}" in
+    stop)
+        stop_recording
+        exit 0
+        ;;
+    status)
+        show_status
+        exit $?
+        ;;
+    toggle)
+        if recorder_is_running; then
+            stop_recording
+            exit 0
+        fi
+        ;;
+    start)
+        recorder_is_running && fail "A recording is already active"
+        ;;
+esac
+
+require_command wl-screenrec
+require_command niri
+require_command jq
+
+TARGET_ARGS=()
+if [[ "${select_region}" == true ]]; then
+    require_command slurp
+    geometry="$(slurp)" || exit 0
+    [[ -n "${geometry}" ]] || exit 0
+    TARGET_ARGS=(--geometry "${geometry}")
+    target_label="region ${geometry}"
+else
+    if [[ -z "${output_name}" ]]; then
+        output_name="$(niri msg --json focused-output | jq -er '.name')" \
+            || fail "Could not determine the focused output"
+    fi
+    TARGET_ARGS=(--output "${output_name}")
+    target_label="output ${output_name}"
+fi
+
+timestamp="$(date '+%Y-%m-%d %H-%M-%S')"
+output_file="${RECORDING_DIR}/Screen Recording ${timestamp}.mkv"
+suffix=1
+while [[ -e "${output_file}" ]]; do
+    output_file="${RECORDING_DIR}/Screen Recording ${timestamp} (${suffix}).mkv"
+    ((suffix++))
+done
+
+cleanup_after_failure=true
+launched_pid=""
+trap cleanup_failed_start EXIT
+{
+    printf 'Started: %s\n' "$(date --iso-8601=seconds)"
+    printf 'Target: %s\n' "${target_label}"
+    printf 'Audio: %s\n\n' "${audio_mode}"
+} > "${LOG_FILE}"
+configure_audio "${audio_mode}"
+
+COMMAND=(
+    wl-screenrec
+    "${TARGET_ARGS[@]}"
+    --codec avc
+    --max-fps 60
+    --no-damage
+    --bitrate "5 MB"
+    "${AUDIO_ARGS[@]}"
+    --filename "${output_file}"
+)
+
+{
+    printf 'Command:'
+    printf ' %q' "${COMMAND[@]}"
+    printf '\n\n'
+} >> "${LOG_FILE}"
+
+nohup bash -c 'trap - INT QUIT; exec "$@"' screen-recorder "${COMMAND[@]}" \
+    9>&- </dev/null >> "${LOG_FILE}" 2>&1 &
+recorder_pid=$!
+launched_pid="${recorder_pid}"
+recorder_start="$(process_start_time "${recorder_pid}")" || fail "Could not inspect the recorder process"
+
+printf '%s\n' "${recorder_pid}" > "${PID_FILE}"
+printf '%s\n' "${recorder_start}" > "${START_FILE}"
+printf '%s\n' "${output_file}" > "${PATH_FILE}"
+printf '%s\n' "${audio_mode}" > "${AUDIO_FILE}"
+printf '%s\n' "${target_label}" > "${TARGET_FILE}"
+
+sleep 0.5
+recorder_is_running || fail "wl-screenrec exited during startup"
+
+cleanup_after_failure=false
+trap - EXIT
+nohup "${SCRIPT_PATH}" __watch "${recorder_pid}" "${recorder_start}" \
+    9>&- </dev/null >/dev/null 2>&1 &
+printf 'Recording: %s\n' "${output_file}"
+notify normal "Recording started" "${target_label}; audio: ${audio_mode}"

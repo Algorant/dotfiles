@@ -1,0 +1,7 @@
+# Local coordination state is never part of the public repository.
+.tandem/
+
+# Common local artifacts.
+*.log
+*.tmp
+.DS_Store

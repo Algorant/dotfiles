@@ -1,0 +1,26 @@
+/*
+ * Verdigris core palette
+ *
+ * Dotfiles-local reference stub for the Verdigris colorscheme.
+ * Canonical palette work lives at https://github.com/Algorant/verdigris,
+ * but this file keeps the core identity available from the dotfiles repo.
+ */
+
+:root {
+  /* Core identity */
+  --verdigris-ashbronze: #665c54; /* background / weathered metal */
+  --verdigris-vellum: #ebdbb2;    /* foreground / warm text */
+  --verdigris-fern: #8ec07c;      /* bright green accent */
+  --verdigris-patina: #689d6a;    /* primary green */
+  --verdigris-aqua: #83a598;      /* cool aqua accent */
+  --verdigris-ochre: #e6bf86;     /* warm brass accent */
+  --verdigris-moss: #70764a;      /* muted olive support */
+
+  /* Useful supporting values seen across current ports */
+  --verdigris-bg0: #1d2021;
+  --verdigris-bg1: #222526;
+  --verdigris-bg2: #252829;
+  --verdigris-muted: #928374;
+  --verdigris-border: #3c3836;
+  --verdigris-red: #fb4934;
+}

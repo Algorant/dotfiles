@@ -1,0 +1,35 @@
+#!/bin/sh
+
+set -eu
+
+SCREENSHOT_DIR="${HOME}/Pictures/Screenshots"
+TIMESTAMP="$(date '+%Y-%m-%d %H-%M-%S')"
+SCREENSHOT_FILE="${SCREENSHOT_DIR}/Screenshot from ${TIMESTAMP}.png"
+
+# Match the existing warm accent while avoiding Niri's default selector UI.
+SLURP_BACKGROUND='00000040'
+SLURP_BORDER='d79921ff'
+SLURP_SELECTION='d7992120'
+SLURP_BORDER_WIDTH='3'
+
+mkdir -p "${SCREENSHOT_DIR}"
+
+geometry="$(
+    slurp \
+        -b "${SLURP_BACKGROUND}" \
+        -c "${SLURP_BORDER}" \
+        -s "${SLURP_SELECTION}" \
+        -w "${SLURP_BORDER_WIDTH}"
+)" || exit 0
+
+grim -g "${geometry}" "${SCREENSHOT_FILE}"
+wl-copy --type image/png < "${SCREENSHOT_FILE}"
+
+if command -v notify-send >/dev/null 2>&1; then
+    notify-send \
+        -a "Screenshot" \
+        -i "${SCREENSHOT_FILE}" \
+        -h "string:image-path:${SCREENSHOT_FILE}" \
+        "Screenshot saved" \
+        "Saved to ${SCREENSHOT_DIR} and copied to the clipboard."
+fi

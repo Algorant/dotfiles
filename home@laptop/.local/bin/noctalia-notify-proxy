@@ -1,0 +1,305 @@
+#!/usr/bin/env python3
+"""Own org.freedesktop.Notifications, resolve a real icon, hand off to Noctalia.
+
+Noctalia 5.0.0-beta.10 resolves toast icons from the notification's app_icon
+field only. Senders that leave app_icon empty and pass the standard
+`desktop-entry` hint (Slack, and Electron apps generally) get no icon.
+
+This proxy claims the bus name in Noctalia's place, resolves an absolute image
+path from whatever the sender did provide, and forwards the notification over
+Noctalia's IPC with that path in `icon`.
+
+Requires `[notification] enable_daemon = false` in the Noctalia config so
+Noctalia does not claim the bus name. Noctalia still renders the toasts.
+"""
+
+import glob
+import json
+import os
+import subprocess
+import sys
+import time
+from urllib.parse import urlparse
+from urllib.request import url2pathname
+
+import dbus
+import dbus.mainloop.glib
+import dbus.service
+import gi
+from gi.repository import Gio, GLib
+
+gi.require_version("GdkPixbuf", "2.0")
+gi.require_version("Gtk", "3.0")
+from gi.repository import GdkPixbuf, Gtk  # noqa: E402
+
+BUS_NAME = "org.freedesktop.Notifications"
+OBJECT_PATH = "/org/freedesktop/Notifications"
+IFACE = "org.freedesktop.Notifications"
+
+ICON_SIZE = 128
+CACHE_TTL_SECONDS = 300
+INDEX_MIN_REBUILD_SECONDS = 10
+MAX_ANCESTRY_DEPTH = 8
+
+# Senders that identify themselves as nothing useful. Herdr shells out to a bare
+# `notify-send`, so its notifications arrive under the tool's own name.
+ANONYMOUS_APP_NAMES = {"", "notify-send", "notify", "notification", "notifications"}
+
+# Process names that are never the application a user would recognise.
+TRANSPARENT_PROCESSES = {
+    "notify-send", "sh", "bash", "zsh", "dash", "fish", "env", "sudo", "doas",
+    "systemd", "login", "python", "python3", "perl", "timeout", "setsid", "nohup",
+}
+
+
+def log(message):
+    print(f"noctalia-notify-proxy: {message}", file=sys.stderr, flush=True)
+
+
+class AppIcons:
+    """Resolves an application key to an absolute image path."""
+
+    def __init__(self):
+        self.theme = Gtk.IconTheme.new()
+        self._index = {}
+        self._built_at = 0.0
+        self.reindex()
+
+    def reindex(self):
+        """Map desktop entry id, StartupWMClass, and Name to an icon name."""
+        index = {}
+        for app in Gio.AppInfo.get_all():
+            icon = app.get_icon()
+            if not icon:
+                continue
+            stem = (app.get_id() or "").removesuffix(".desktop")
+            keys = [stem, stem.rsplit(".", 1)[-1], app.get_startup_wm_class(), app.get_name()]
+            for key in keys:
+                if key:
+                    index.setdefault(key.lower(), icon.to_string())
+        self._index = index
+        self._built_at = time.monotonic()
+
+    def path_for_app(self, key):
+        """Resolve by desktop entry, falling back to an icon named after the app."""
+        if not key:
+            return None
+        name = self._index.get(key.lower())
+        if not name and time.monotonic() - self._built_at > INDEX_MIN_REBUILD_SECONDS:
+            # A miss can mean a newly installed application, but not in a hot loop.
+            self.reindex()
+            name = self._index.get(key.lower())
+        return self.path_for_icon(name) or self.path_for_icon(key)
+
+    def path_for_icon(self, name):
+        """Resolve an icon name, absolute path, or file:// URI to a real file."""
+        if not name:
+            return None
+        if name.startswith("file://"):
+            # Niri sends screenshot paths as percent-encoded URIs.
+            name = url2pathname(urlparse(name).path)
+        if os.path.isabs(name):
+            return name if os.path.isfile(name) else None
+        info = self.theme.lookup_icon(name, ICON_SIZE, 0)
+        return info.get_filename() if info else None
+
+
+class ImageCache:
+    """Writes `image-data` pixel payloads out as PNG files Noctalia can load."""
+
+    def __init__(self):
+        runtime = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
+        self.directory = os.path.join(runtime, "noctalia-notify-proxy")
+        os.makedirs(self.directory, exist_ok=True)
+        self._counter = 0
+
+    def store(self, image_data):
+        try:
+            width, height, rowstride, has_alpha, bits, _channels, data = image_data
+            pixbuf = GdkPixbuf.Pixbuf.new_from_bytes(
+                GLib.Bytes.new(bytes(data)),
+                GdkPixbuf.Colorspace.RGB,
+                bool(has_alpha),
+                int(bits),
+                int(width),
+                int(height),
+                int(rowstride),
+            )
+            self._counter += 1
+            path = os.path.join(self.directory, f"image-{os.getpid()}-{self._counter}.png")
+            pixbuf.savev(path, "png", [], [])
+        except (GLib.Error, TypeError, ValueError) as error:
+            log(f"could not decode image-data: {error}")
+            return None
+        self._prune()
+        return path
+
+    def _prune(self):
+        cutoff = time.time() - CACHE_TTL_SECONDS
+        for path in glob.glob(os.path.join(self.directory, "image-*.png")):
+            try:
+                if os.path.getmtime(path) < cutoff:
+                    os.unlink(path)
+            except OSError:
+                pass
+
+
+def process_info(pid):
+    try:
+        with open(f"/proc/{pid}/status", encoding="utf-8", errors="replace") as handle:
+            fields = dict(
+                line.split(":", 1) for line in handle if line.startswith(("Name:", "PPid:"))
+            )
+        return fields["Name"].strip(), int(fields["PPid"])
+    except (OSError, KeyError, ValueError):
+        return None, None
+
+
+class NotificationProxy(dbus.service.Object):
+    def __init__(self, bus, bus_name):
+        super().__init__(bus_name, OBJECT_PATH)
+        self.icons = AppIcons()
+        self.images = ImageCache()
+        self.next_id = 1
+        self.dbus_daemon = dbus.Interface(
+            bus.get_object("org.freedesktop.DBus", "/org/freedesktop/DBus"),
+            "org.freedesktop.DBus",
+        )
+
+    @dbus.service.method(IFACE, in_signature="", out_signature="as")
+    def GetCapabilities(self):
+        # "actions" is deliberately absent: forwarded notifications have no action buttons.
+        return ["body", "body-markup", "icon-static", "persistence"]
+
+    @dbus.service.method(IFACE, in_signature="", out_signature="ssss")
+    def GetServerInformation(self):
+        return ("noctalia-notify-proxy", "local", "1.0", "1.2")
+
+    @dbus.service.method(IFACE, in_signature="u", out_signature="")
+    def CloseNotification(self, notification_id):
+        return
+
+    @dbus.service.signal(IFACE, signature="uu")
+    def NotificationClosed(self, notification_id, reason):
+        pass
+
+    @dbus.service.signal(IFACE, signature="us")
+    def ActionInvoked(self, notification_id, action_key):
+        pass
+
+    @dbus.service.method(
+        IFACE, in_signature="susssasa{sv}i", out_signature="u", sender_keyword="sender"
+    )
+    def Notify(
+        self, app_name, replaces_id, app_icon, summary, body, actions, hints,
+        expire_timeout, sender=None,
+    ):
+        notification_id = self.next_id
+        self.next_id += 1
+
+        app_name = str(app_name)
+        desktop_entry = str(hints.get("desktop-entry", "")) or None
+
+        payload = {
+            "app_name": app_name or "Notification",
+            "summary": str(summary),
+            "body": str(body),
+        }
+        icon = self._resolve_icon(str(app_icon), hints, desktop_entry, app_name, sender)
+        if icon:
+            payload["icon"] = icon
+        if desktop_entry:
+            payload["desktop_entry"] = desktop_entry
+        if hints.get("category"):
+            payload["category"] = str(hints["category"])
+        if hints.get("urgency") is not None:
+            urgency = int(hints["urgency"])
+            payload["urgency"] = {0: "low", 1: "normal", 2: "critical"}.get(urgency, "normal")
+        if int(expire_timeout) >= 0:
+            payload["timeout_ms"] = int(expire_timeout)
+
+        self._forward(payload)
+        return notification_id
+
+    def _resolve_icon(self, app_icon, hints, desktop_entry, app_name, sender):
+        # Freedesktop precedence: raw image data, then an image path, then app_icon.
+        for key in ("image-data", "image_data", "icon_data"):
+            if key in hints:
+                path = self.images.store(hints[key])
+                if path:
+                    return path
+        for key in ("image-path", "image_path"):
+            if key in hints:
+                path = self.icons.path_for_icon(str(hints[key]))
+                if path:
+                    return path
+        if app_icon:
+            path = self.icons.path_for_icon(app_icon)
+            if path:
+                return path
+        # The gap this proxy exists to close.
+        for key in (desktop_entry, app_name):
+            path = self.icons.path_for_app(key)
+            if path:
+                return path
+        # Nothing in the message identifies the sender, so ask the process tree.
+        if app_name.strip().lower() in ANONYMOUS_APP_NAMES:
+            for name in self._caller_ancestry(sender):
+                path = self.icons.path_for_app(name)
+                if path:
+                    return path
+        return None
+
+    def _caller_ancestry(self, sender):
+        """Process names above the caller, nearest first, skipping plumbing."""
+        if not sender:
+            return []
+        try:
+            pid = int(self.dbus_daemon.GetConnectionUnixProcessID(sender))
+        except dbus.DBusException:
+            return []
+        names = []
+        for _ in range(MAX_ANCESTRY_DEPTH):
+            name, parent = process_info(pid)
+            if name is None:
+                break
+            if name.lower() not in TRANSPARENT_PROCESSES:
+                names.append(name)
+            if parent is None or parent <= 1:
+                break
+            pid = parent
+        return names
+
+    @staticmethod
+    def _forward(payload):
+        try:
+            subprocess.run(
+                ["noctalia", "msg", "notification-show", json.dumps(payload)],
+                check=True, capture_output=True, timeout=5,
+            )
+        except subprocess.CalledProcessError as error:
+            log(f"noctalia rejected notification: {error.stderr.decode(errors='replace').strip()}")
+        except (OSError, subprocess.TimeoutExpired) as error:
+            log(f"could not reach noctalia: {error}")
+
+
+def main():
+    dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
+    bus = dbus.SessionBus()
+    if bus.request_name(BUS_NAME, dbus.bus.NAME_FLAG_DO_NOT_QUEUE) != (
+        dbus.bus.REQUEST_NAME_REPLY_PRIMARY_OWNER
+    ):
+        log(
+            f"{BUS_NAME} is already owned. "
+            "Set `[notification] enable_daemon = false` in the Noctalia config."
+        )
+        return 1
+
+    NotificationProxy(bus, dbus.service.BusName(BUS_NAME, bus=bus))
+    log("ready")
+    GLib.MainLoop().run()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

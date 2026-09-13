@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+INTERNAL="${NIRI_INTERNAL_OUTPUT:-eDP-1}"
+
+# If this is launched from a stale terminal without NIRI_SOCKET, point niri
+# msg at the current session socket.
+if [[ -z "${NIRI_SOCKET:-}" || ! -S "${NIRI_SOCKET:-}" ]]; then
+    latest_socket="$(ls -t "${XDG_RUNTIME_DIR:-/run/user/$UID}"/niri.*.sock 2>/dev/null | head -n1 || true)"
+    [[ -n "$latest_socket" ]] && export NIRI_SOCKET="$latest_socket"
+fi
+
+outputs_json="$(niri msg -j outputs)"
+EXTERNAL="${NIRI_EXTERNAL_OUTPUT:-$(jq -r '
+    to_entries[]
+    | select(.key != "eDP-1")
+    | select((.value.make // "" | test("ExampleMake"; "i")) or (.value.model // "" | test("ExampleModel"; "i")))
+    | .key
+' <<<"$outputs_json" | head -n1)}"
+
+if [[ -z "$EXTERNAL" ]]; then
+    notify-send "Display profile" "External display is not connected." 2>/dev/null || true
+    exit 1
+fi
+
+workspaces_json="$(niri msg -j workspaces)"
+ids="$(niri msg -j windows | jq -r --arg src "$INTERNAL" --argjson workspaces "$workspaces_json" '
+    .[] as $win
+    | ($workspaces[] | select(.id == $win.workspace_id and .output == $src))
+    | $win.id
+')"
+
+if [[ -n "$ids" ]]; then
+    while IFS= read -r id; do
+        [[ -n "$id" ]] || continue
+        niri msg action move-window-to-monitor --id "$id" "$EXTERNAL" || true
+    done <<<"$ids"
+fi
+
+niri msg action focus-monitor "$EXTERNAL" || true

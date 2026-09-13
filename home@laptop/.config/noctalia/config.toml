@@ -1,0 +1,216 @@
+# Consolidated Noctalia v5 configuration.
+# Exported from the active merged configuration and approved notification settings.
+
+[bar.default]
+background_opacity = 0.79
+capsule_fill = "on_secondary"
+capsule_thickness = 0.75
+center = [ "control-center", "clock", "media" ]
+end = [ "sysmon", "cpu", "ram", "volume", "brightness", "bluetooth", "network", "battery", "notifications", "tray" ]
+start = [ "workspaces", "active_window" ]
+widget_spacing = 10
+
+[control_center]
+width = 800
+
+    [control_center.calendar]
+    show_events_card = false
+
+    [[control_center.shortcuts]]
+    type = "wifi"
+
+    [[control_center.shortcuts]]
+    type = "bluetooth"
+
+    [[control_center.shortcuts]]
+    type = "power_profile"
+
+[desktop_widgets]
+enabled = false
+
+[location]
+address = "Your City, ST"
+
+[lockscreen_widgets]
+enabled = true
+schema_version = 2
+widget_order = [ "lockscreen-login-box@eDP-1", "lockscreen-widget-0000000000000001" ]
+
+    [lockscreen_widgets.grid]
+    cell_size = 16
+    major_interval = 4
+    visible = true
+
+    [lockscreen_widgets.widget."lockscreen-login-box@eDP-1"]
+    box_height = 196.0
+    box_width = 810.0
+    cx = 853.5
+    cy = 533.5
+    output = "eDP-1"
+    rotation = 0.0
+    type = "login_box"
+
+        [lockscreen_widgets.widget."lockscreen-login-box@eDP-1".settings]
+        background_color = "surface_variant"
+        background_opacity = 0.88
+        background_radius = 12.0
+        center_password_text = false
+        input_opacity = 1.0
+        input_radius = 6.0
+        layout = "regular"
+        show_caps_lock = true
+        show_keyboard_layout = true
+        show_login_button = true
+        show_media = true
+        show_session_buttons = true
+        show_unlock_hint = true
+        show_weather = true
+
+    [lockscreen_widgets.widget.lockscreen-widget-0000000000000001]
+    box_height = 144.0
+    box_width = 240.0
+    cx = 853.5
+    cy = 229.5
+    output = "eDP-1"
+    rotation = 0.0
+    type = "clock"
+
+        [lockscreen_widgets.widget.lockscreen-widget-0000000000000001.settings]
+        format = "{:%I:%M %p}"
+
+[shell]
+time_format = "{:%I:%M %p}"
+
+    [shell.launcher]
+    categories = false
+    fetch_exchange_rates = false
+
+    [shell.panel]
+    control_center_placement = "floating"
+
+    [shell.session]
+
+        [[shell.session.actions]]
+        action = "lock"
+        shortcut = "1"
+
+        [[shell.session.actions]]
+        action = "logout"
+        shortcut = "2"
+
+        [[shell.session.actions]]
+        action = "lock_and_suspend"
+        shortcut = "3"
+
+        [[shell.session.actions]]
+        action = "reboot"
+        shortcut = "4"
+
+        [[shell.session.actions]]
+        action = "shutdown"
+        variant = "default"
+        shortcut = "5"
+
+[theme]
+builtin = "Gruvbox"
+community_palette = "GruvboxAlt"
+custom_palette = "verdigris"
+mode = "dark"
+source = "custom"
+wallpaper_scheme = "m3-content"
+
+    [theme.templates]
+    builtin_ids = [ "ghostty" ]
+    enable_builtin_templates = false
+
+[wallpaper]
+directory = "/home/user/Pictures/wallpapers"
+transition = [ "fade" ]
+transition_duration = 1000
+
+    [wallpaper.default]
+    path = "/home/user/Pictures/wallpapers/arch/UhiPF31-arch-linux-wallpaper.jpg"
+
+    [wallpaper.last]
+    path = "/home/user/Pictures/wallpapers/arch/UhiPF31-arch-linux-wallpaper.jpg"
+
+    [wallpaper.monitors.eDP-1]
+    path = "/home/user/Pictures/wallpapers/arch/UhiPF31-arch-linux-wallpaper.jpg"
+
+[weather]
+unit = "imperial"
+
+[widget.active_window]
+max_length = 250
+scale = 1.1
+
+[widget.bluetooth]
+enabled = false
+
+[widget.clock]
+anchor = true
+format = "{:%I:%M %p}"
+
+[widget.control-center]
+custom_image = "~/.config/fastfetch/icons/arch-verdigris/arch-verdigris-fern.png"
+custom_image_colorize = false
+
+[widget.cpu]
+show_value = true
+visualization = "none"
+
+[widget.media]
+art_size = 18
+capsule_fill = "surface_variant"
+capsule_foreground = "on_surface"
+capsule_opacity = 0.72
+capsule_padding = 8
+capsule_radius = 10
+hide_when_no_media = true
+max_length = 201
+title_scroll = "on_hover"
+
+[widget.network]
+enabled = false
+show_label = false
+
+[widget.ram]
+show_value = true
+visualization = "none"
+
+[widget.sysmon]
+enabled = false
+show_value = true
+stat = "ram_pct"
+visualization = "none"
+
+[widget.tray]
+drawer = true
+
+[widget.workspaces]
+empty_color = "on_surface_variant"
+focused_color = "primary"
+hide_when_empty = true
+max_label_chars = 15
+occupied_color = "on_surface_variant"
+scale = 1.1
+style = "minimal"
+urgent_color = "error"
+
+[notification]
+background_opacity = 0.97
+border = true
+collapse_on_dismiss = true
+# noctalia-notify-proxy owns org.freedesktop.Notifications instead, so it can
+# resolve icons from the desktop-entry hint before handing toasts to Noctalia.
+enable_daemon = false
+history_retention_hours = 0
+layer = "top"
+max_visible = 0
+monitors = []
+offset_x = 20
+offset_y = 8
+position = "top_right"
+scale = 1.0
+show_actions = true
+show_app_name = true

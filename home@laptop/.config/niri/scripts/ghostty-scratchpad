@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_ID="dev.scratch.Ghostty"
+STASH_WS="stash"
+SPAWN_CMD="ghostty --class=${APP_ID} --title=${APP_ID}"
+
+/usr/bin/niri-scratchpad target --spawn "$SPAWN_CMD" --as-float appid "$APP_ID"
+
+for _ in {1..40}; do
+    windows_json="$(niri msg --json windows 2>/dev/null || true)"
+    workspaces_json="$(niri msg --json workspaces-with-hidden 2>/dev/null || niri msg --json workspaces 2>/dev/null || true)"
+
+    win_id="$(jq -r --arg app "$APP_ID" '.[] | select(.app_id == $app) | .id' <<<"$windows_json" | head -n1)"
+    [ -n "${win_id:-}" ] && [ "$win_id" != "null" ] || { sleep 0.05; continue; }
+
+    win_ws_id="$(jq -r --arg app "$APP_ID" '.[] | select(.app_id == $app) | .workspace_id' <<<"$windows_json" | head -n1)"
+    stash_ws_id="$(jq -r --arg name "$STASH_WS" '.[] | select(.name == $name) | .id' <<<"$workspaces_json" | head -n1)"
+
+    if [ -n "${stash_ws_id:-}" ] && [ "$win_ws_id" = "$stash_ws_id" ]; then
+        exit 0
+    fi
+
+    niri msg action move-window-to-floating --id "$win_id" >/dev/null 2>&1 || true
+    niri msg action center-window --id "$win_id" >/dev/null 2>&1 || true
+    niri msg action focus-window --id "$win_id" >/dev/null 2>&1 || true
+    exit 0
+done

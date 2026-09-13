@@ -1,0 +1,210 @@
+# Global user-tool ownership.
+# System and desktop packages remain under pacman/AUR; fast-moving user tools
+# belong here. Global tools track rolling latest by policy and are not lockfile-pinned;
+# every update is validated afterward by sysup verify. Rust is the exception:
+# mise still owns the nightly toolchain with rust-src (`mise install rust`
+# provisions it), but routine sysup upgrades exclude Rust (`mise upgrade
+# --exclude rust`); run `sysup rust` (`mise upgrade rust`) explicitly to
+# upgrade the compiler.
+
+[tools]
+bun = "latest"
+
+uv = "latest"
+
+node = "latest"
+
+pi = "latest"
+
+rust = { version = "nightly", components = ["rust-src"] }
+
+herdr = "latest"
+
+worktrunk = "latest"
+
+"github:michel-kraemer/zsh-patina" = "latest"
+
+"github:Algorant/tandem" = { version = "latest", version_prefix = "tandem-v" }
+
+"github:xdevplatform/xurl" = "latest"
+
+"github:cachix/secretspec" = "latest"
+
+"github:Algorant/ketch" = "latest"
+
+"aqua:schollz/croc" = "latest"
+
+"github:ProtonPass/pass-cli" = "latest"
+
+# fnox (jdx) is evaluation-only for now: a possible SecretSpec replacement.
+# Secret values stay on the Proton Pass/SecretSpec workflow until decided.
+"github:jdx/fnox" = "latest"
+
+# flyctl moved here from AUR; aqua ships both the flyctl and fly names.
+"aqua:superfly/flyctl" = "latest"
+
+# Coding agents use mise's verified aqua registry backends. Keep these
+# explicit so a registry priority change cannot silently switch ownership.
+"aqua:anthropics/claude-code" = "latest"
+"aqua:openai/codex" = "latest"
+"aqua:anomalyco/opencode" = "latest"
+"aqua:github/copilot-cli" = "latest"
+
+"github:h4ckf0r0day/obscura" = { version = "latest", asset_pattern = 'obscura-{{ arch(x64="x86_64", arm64="aarch64") }}-linux.tar.gz' }
+
+
+"npm:sideshow" = "latest"
+
+# Playwright's agent CLI (binary playwright-cli), moved here from AUR.
+# This is @playwright/cli, not the playwright test-runner package.
+"npm:@playwright/cli" = "latest"
+
+[settings]
+# npm: identifies the registry/backend. Bun installs registry tools; Node >=22.18
+# executes Sideshow's published Node-shebang command.
+npm.package_manager = "bun"
+# This machine deliberately follows absolute latest without mise's 24h delay.
+minimum_release_age = "0s"
+
+# Automatic native dotfile history. Machine identity stays in miserc.toml.
+[settings.history]
+sync = "sync"
+
+[bootstrap.services.mise-history]
+builtin = "history-watch"
+
+[dotfiles]
+"~/.config/atuin/config.toml" = { mode = "track" }
+"~/.config/atuin/themes/verdigris.toml" = { mode = "track" }
+"~/.config/bat/config" = { mode = "track" }
+"~/.config/bat/themes/Verdigris.tmTheme" = { mode = "track" }
+"~/.config/btop/btop.conf" = { mode = "track" }
+"~/.config/btop/themes/verdigris.theme" = { mode = "track" }
+"~/.config/fastfetch/config.jsonc" = { mode = "track" }
+"~/.config/fastfetch/icons/arch-verdigris/arch-verdigris-aqua.png" = { mode = "track" }
+"~/.config/fastfetch/icons/arch-verdigris/arch-verdigris-ashbronze.png" = { mode = "track" }
+"~/.config/fastfetch/icons/arch-verdigris/arch-verdigris-fern.png" = { mode = "track" }
+"~/.config/fastfetch/icons/arch-verdigris/arch-verdigris-moss.png" = { mode = "track" }
+"~/.config/fastfetch/icons/arch-verdigris/arch-verdigris-ochre.png" = { mode = "track" }
+"~/.config/fastfetch/icons/arch-verdigris/arch-verdigris-patina.png" = { mode = "track" }
+"~/.config/fastfetch/icons/arch-verdigris/arch-verdigris-vellum.png" = { mode = "track" }
+"~/.config/fd/ignore" = { mode = "track" }
+"~/.config/fuzzel/fuzzel.ini" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.config/ghostty/config" = { mode = "track" }
+"~/.config/ghostty/themes/Verdigris" = { mode = "track" }
+"~/.config/git/config" = { mode = "track" }
+"~/.config/git/ignore" = { mode = "track" }
+"~/.config/herdr/config.toml" = { mode = "track" }
+"~/.config/lsd/colors.yaml" = { mode = "track" }
+"~/.config/lsd/config.yaml" = { mode = "track" }
+"~/.config/mise/config.toml" = { mode = "track" }
+"~/.config/mpv/mpv.conf" = { mode = "track" }
+"~/.config/mpv/script-opts/mpv360.conf" = { mode = "track" }
+"~/.config/mpv/script-opts/uosc.conf" = { mode = "track" }
+"~/.config/ncspot/config.toml" = { mode = "track" }
+"~/.config/niri/config.kdl" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.config/niri/scripts/ghostty-scratchpad" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.config/niri/scripts/move-windows-to-external" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.config/niri/scripts/screen-record" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.config/niri/scripts/screenshot-region" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.config/noctalia/config.toml" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.config/noctalia/palettes/verdigris.json" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.config/nvim/init.lua" = { mode = "track" }
+"~/.config/nvim/lsp/basedpyright.lua" = { mode = "track" }
+"~/.config/nvim/lsp/bashls.lua" = { mode = "track" }
+"~/.config/nvim/lsp/clangd.lua" = { mode = "track" }
+"~/.config/nvim/lsp/cssls.lua" = { mode = "track" }
+"~/.config/nvim/lsp/html.lua" = { mode = "track" }
+"~/.config/nvim/lsp/jsonls.lua" = { mode = "track" }
+"~/.config/nvim/lsp/lua_ls.lua" = { mode = "track" }
+"~/.config/nvim/lsp/ruff.lua" = { mode = "track" }
+"~/.config/nvim/lsp/rust_analyzer.lua" = { mode = "track" }
+"~/.config/nvim/lsp/yamlls.lua" = { mode = "track" }
+"~/.config/nvim/lua/config/autocommands.lua" = { mode = "track" }
+"~/.config/nvim/lua/config/icons.lua" = { mode = "track" }
+"~/.config/nvim/lua/config/lazy.lua" = { mode = "track" }
+"~/.config/nvim/lua/config/lsp.lua" = { mode = "track" }
+"~/.config/nvim/lua/config/options.lua" = { mode = "track" }
+"~/.config/nvim/lua/plugins/blink.lua" = { mode = "track" }
+"~/.config/nvim/lua/plugins/colorscheme.lua" = { mode = "track" }
+"~/.config/nvim/lua/plugins/conform.lua" = { mode = "track" }
+"~/.config/nvim/lua/plugins/lualine.lua" = { mode = "track" }
+"~/.config/nvim/lua/plugins/mason.lua" = { mode = "track" }
+"~/.config/nvim/lua/plugins/mini.lua" = { mode = "track" }
+"~/.config/nvim/lua/plugins/neoscroll.lua" = { mode = "track" }
+"~/.config/nvim/lua/plugins/noice.lua" = { mode = "track" }
+"~/.config/nvim/lua/plugins/snacks.lua" = { mode = "track" }
+"~/.config/nvim/lua/plugins/supermaven.lua" = { mode = "track" }
+"~/.config/nvim/lua/plugins/toggleterm.lua" = { mode = "track" }
+"~/.config/nvim/lua/plugins/treesitter.lua" = { mode = "track" }
+"~/.config/nvim/lua/plugins/whichkey.lua" = { mode = "track" }
+"~/.config/nvim/theme-test/sample.json" = { mode = "track" }
+"~/.config/nvim/theme-test/sample.lua" = { mode = "track" }
+"~/.config/nvim/theme-test/sample.md" = { mode = "track" }
+"~/.config/nvim/theme-test/sample.py" = { mode = "track" }
+"~/.config/nvim/theme-test/sample.rs" = { mode = "track" }
+"~/.config/nvim/theme-test/sample.sh" = { mode = "track" }
+"~/.config/paru/paru.conf" = { mode = "track" }
+"~/.config/secretspec/manifests/ketch.toml" = { mode = "track" }
+"~/.config/starship.toml" = { mode = "track" }
+"~/.config/tandem/config.toml" = { mode = "track" }
+"~/.config/tandem/themes/verdigris.toml" = { mode = "track" }
+"~/.config/theme_colors/gruvbox_colors.css" = { mode = "track" }
+"~/.config/theme_colors/verdigris.css" = { mode = "track" }
+"~/.config/wireplumber/wireplumber.conf.d/51-keep-built-in-audio-awake.conf" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.config/worktrunk/config.toml" = { mode = "track" }
+"~/.config/yazi/theme.toml" = { mode = "track" }
+"~/.config/yazi/yazi.toml" = { mode = "track" }
+"~/.config/zsh/.zshenv" = { mode = "track" }
+"~/.config/zsh/.zshrc" = { mode = "track" }
+"~/.config/zsh/aliases.zsh" = { mode = "track" }
+"~/.config/zsh/env.zsh" = { mode = "track" }
+"~/.config/zsh/functions.zsh" = { mode = "track" }
+"~/.config/zsh/pi-command-env.zsh" = { mode = "track" }
+"~/.config/zsh/tools.zsh" = { mode = "track" }
+"~/.local/bin/noctalia-notify-proxy" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.local/bin/ketch-sync" = { mode = "track" }
+"~/.local/bin/sysup" = { mode = "track" }
+"~/.local/share/applications/avahi-discover.desktop" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.local/share/applications/bssh.desktop" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.local/share/applications/bvnc.desktop" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.local/share/applications/cmake-gui.desktop" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.local/share/applications/cups.desktop" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.local/share/applications/lstopo.desktop" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.local/share/applications/org.gnome.Nautilus.desktop" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.local/share/applications/qv4l2.desktop" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.local/share/applications/qvidcap.desktop" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.local/share/applications/system-config-printer.desktop" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.local/share/dbus-1/services/org.freedesktop.Notifications.service" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.local/share/icons/hicolor/512x512/apps/herdr.png" = { mode = "track" }
+"~/.ssh/config.d/terminal.conf" = { mode = "track" }
+"~/.zshenv" = { mode = "track" }
+
+[history]
+exclude = [
+  "~/.config/zsh/.secrets",
+  "~/.config/zsh/.zsh_history",
+  "~/.config/zsh/.zcompdump*",
+  "~/.config/zsh/.zsh_sessions/",
+  "~/.config/zsh/cache/",
+  "~/.config/nvim/lazy-lock.json",
+  "~/.config/tandem/tandem-receipt.json",
+  "~/.config/mpv/scripts/uosc/",
+  "~/.config/mpv/scripts/mpv360.lua",
+  "~/.config/mpv/fonts/",
+  "~/.config/mpv/shaders/",
+  "~/.config/worktrunk/approvals.toml",
+  "~/.config/worktrunk/approvals.toml.lock",
+  "~/.config/ketch/config.json",
+  "~/.config/secretspec/config.toml",
+  "~/.config/secretspec/audit.log",
+  "~/.ssh/id_*",
+  "~/.ssh/*.pub",
+  "~/.ssh/authorized_keys",
+  "~/.ssh/known_hosts",
+  "~/.ssh/known_hosts.old",
+  "~/.pi/",
+  "~/tests/",
+  "~/.config/mise/miserc.toml",
+  "~/.config/mise/*.local.toml",
+]

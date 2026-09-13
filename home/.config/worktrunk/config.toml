@@ -1,0 +1,12 @@
+# Shared developer preferences. Project lifecycle hooks remain project-owned in
+# .config/wt.toml and retain Worktrunk's first-run/change approval boundary.
+skip-commit-generation-prompt = true
+worktree-path = "~/Projects/worktrees/{{ repo }}/{{ branch | sanitize }}"
+
+[list]
+json-schema = 2
+
+[remove]
+# Delete only branches Worktrunk proves add no changes. Dirty worktrees and
+# unmerged branches still require the explicit --force / -D safety overrides.
+delete-branch = true
