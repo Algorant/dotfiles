@@ -22,6 +22,8 @@ herdr = "latest"
 
 worktrunk = "latest"
 
+"cargo:emeraldian" = "latest"
+
 "github:michel-kraemer/zsh-patina" = "latest"
 
 "github:Algorant/tandem" = { version = "latest", version_prefix = "tandem-v" }
