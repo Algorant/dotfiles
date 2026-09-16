@@ -30,3 +30,9 @@ command = "herdr-new-space --git-cmd lazygit"
 
 [experimental]
 kitty_graphics = true
+
+[ui.sidebar.agents]
+rows = [
+  ["state_icon", "workspace", "tab"],
+  [{ token = "agent", dim = true }, { token = "machine", dim = true }],
+]
