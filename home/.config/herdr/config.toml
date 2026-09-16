@@ -33,6 +33,6 @@ kitty_graphics = true
 
 [ui.sidebar.agents]
 rows = [
-  ["state_icon", "workspace", "tab"],
+  ["state_icon", "$agent_tree_row", "workspace", "tab"],
   [{ token = "agent", dim = true }, { token = "machine", dim = true }],
 ]
