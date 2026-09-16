@@ -30,3 +30,8 @@ command = "herdr-new-space --git-cmd lazygit"
 
 [experimental]
 kitty_graphics = true
+
+# >>> agent-tree sidebar rows >>>
+[ui.sidebar.agents]
+rows = [["state_icon", "$agent_tree_row", "terminal_title_stripped"]]
+# <<< agent-tree sidebar rows <<<
