@@ -1,0 +1,191 @@
+#!/usr/bin/env bash
+# sysup — one routine for "update everything" (toolchain-plan 06, agreed 2026-09-01)
+#
+#   sysup            full cycle: paru -Syu -> mise (cache clear + upgrade, Rust excluded) -> Pi checkout + pi-update -> verify
+#   sysup paru       only the system/AUR upgrade (--noconfirm, sudo)
+#   sysup mise       only mise: cache clear + mise upgrade --exclude rust (coding agents excluded too)
+#   sysup agents     update and verify Claude Code, Codex, OpenCode, and Copilot together
+#   sysup rust       only Rust: mise upgrade rust (opt-in; routine updates leave Rust alone)
+#   sysup pi         only the Pi checkout fast-forward and public pi-update composite
+#   sysup status     read-only: pending updates and current versions
+#   sysup verify     tool verification + restart reminders
+#
+# Policy: status-first manual use; no cron/automation; never a partial pacman
+# upgrade (paru -Syu --noconfirm is the only paru invocation this script makes); no
+# `--bump` (global config tracks `latest`); stop on first failure.
+# Rust is the rolling-latest exception: mise owns the nightly toolchain
+# (`mise install rust` provisions it), but routine mise upgrades exclude Rust.
+# The coding-agent group is also opt-in; run `sysup agents` to update it.
+# Run `sysup rust` explicitly to upgrade the compiler.
+set -euo pipefail
+
+SYS_END="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/bin/pi-update"
+
+# mise has no native groups. Keep this list authoritative for the opt-in
+# coding-agent update set and for its default-upgrade exclusions.
+readonly CODING_AGENT_TOOLS=(claude codex opencode copilot)
+
+say()  { printf '\n== %s ==\n' "$*"; }
+die()  { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
+
+versions_before() {
+  printf 'pi=%s\n' "$(pi --version 2>/dev/null | tr '\n' ' ')"
+  printf 'herdr=%s\n' "$(herdr --version 2>/dev/null | tr '\n' ' ')"
+  printf 'bun=%s\n' "$(bun --version 2>/dev/null)"
+  printf 'rust=%s\n' "$(rustc --version 2>/dev/null)"
+}
+
+UPGRADED_PI=""
+UPGRADED_HERDR=""
+UPGRADED_BUN=""
+
+cmd_paru() {
+  command -v paru >/dev/null || die "paru not found"
+  say "System + AUR upgrade (paru -Syu --noconfirm)"
+  paru -Syu --noconfirm
+}
+
+cmd_mise() {
+  command -v mise >/dev/null || die "mise not found"
+  say "Mise: clearing cache (github backend batches releases; required before upgrade)"
+  mise cache clear
+  local upgrade_args=(upgrade --exclude rust)
+  local tool
+  for tool in "${CODING_AGENT_TOOLS[@]}"; do
+    upgrade_args+=(--exclude "$tool")
+  done
+  say "Mise: upgrading normal tools (Rust and coding agents are opt-in)"
+  mise "${upgrade_args[@]}"
+}
+
+cmd_agents() {
+  command -v mise >/dev/null || die "mise not found"
+  say "Mise: clearing cache before coding-agent group upgrade"
+  mise cache clear
+  say "Mise: upgrading coding-agent group (Claude Code, Codex, OpenCode, Copilot)"
+  mise upgrade "${CODING_AGENT_TOOLS[@]}"
+  cmd_verify_agents
+}
+
+cmd_rust() {
+  command -v mise >/dev/null || die "mise not found"
+  say "Mise: upgrading Rust only (opt-in compiler upgrade)"
+  mise upgrade rust
+}
+
+cmd_pi() {
+  command -v git >/dev/null || die "git not found"
+  [[ -x "$SYS_END" ]] || die "pi-update not found at $SYS_END"
+  local pi_repo="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/.."
+  say "Pi checkout update (git pull --ff-only)"
+  if ! git -C "$pi_repo" pull --ff-only; then
+    die "Pi checkout update failed at $pi_repo"
+  fi
+  say "Pi composite update (pi-update)"
+  "$SYS_END"
+}
+
+cmd_status() {
+  say "Pending updates"
+  echo "-- paru (system + AUR):"
+  paru -Qu 2>/dev/null || echo "   (paru -Qu unavailable or nothing pending)"
+  echo
+  echo "-- mise (normal tools; Rust and coding agents are opt-in):"
+  mise outdated 2>/dev/null || echo "   (no outdated tools)"
+  echo "   (Coding agents are excluded by default: sysup agents updates and verifies Claude Code, Codex, OpenCode, and Copilot)"
+  echo "   (Rust upgrades are opt-in: sysup rust runs mise upgrade rust)"
+  echo
+  echo "-- current versions:"
+  mise current
+  echo
+  echo "AUR packages installed (paru -Qm count): $(paru -Qm 2>/dev/null | wc -l)"
+}
+
+cmd_verify_agents() {
+  local local_status=0
+  local passed=0 total=0
+  say "Coding-agent verification"
+  v_agent() {
+    local description="$1"
+    shift
+    total=$((total + 1))
+    if "$@" >/dev/null 2>&1; then
+      echo "  PASS  $description"
+      passed=$((passed + 1))
+    else
+      echo "  FAIL  $description"
+      local_status=1
+    fi
+  }
+  v_agent "Claude Code" claude --version
+  v_agent "Codex" codex --version
+  v_agent "OpenCode" opencode --version
+  v_agent "Copilot" copilot --version
+  echo "Coding agents: $passed/${#CODING_AGENT_TOOLS[@]} passed."
+  return "$local_status"
+}
+
+cmd_verify() {
+  local local_status=0
+  say "Tool verification"
+  passed=0; total=0
+  v() { local description="$1"; shift; total=$((total + 1)); if "$@" >/dev/null 2>&1; then echo "  PASS  $description"; passed=$((passed + 1)); else echo "  FAIL  $description"; local_status=1; fi; }
+  v "rustc (installed toolchain runs)" rustc --version
+  v "zsh-patina" zsh-patina --version
+  v "xurl" xurl --version
+  v "secretspec" secretspec --version
+  v "pass-cli" pass-cli --version
+  v "fnox" fnox --version
+  v "obscura" obscura --version
+  v "ketch doctor" ketch doctor
+  v "croc" croc --version
+  v "flyctl" flyctl version
+  v "playwright-cli" playwright-cli --version
+  v "Claude Code" claude --version
+  v "Codex" codex --version
+  v "OpenCode" opencode --version
+  v "Copilot" copilot --version
+  # Binaries the Pi extensions invoke directly.
+  v "bun" bun --version
+  v "herdr" herdr --version
+  v "tandem" tandem --version
+  v "worktrunk" wt --version
+  echo "Tools: $passed/$total passed."
+  [[ -n "$UPGRADED_PI" ]]    && echo "> pi changed ($UPGRADED_PI) — RESTART Pi, then /config-check"
+  [[ -n "$UPGRADED_HERDR" ]] && echo "> herdr changed ($UPGRADED_HERDR) — restart herdr (your terminal host)"
+  [[ -n "$UPGRADED_BUN" ]]   && echo "> bun changed ($UPGRADED_BUN) — restart dependent daemons (sideshow)"
+  return "$local_status"
+}
+
+cmd_full() {
+  local before
+  before=$(versions_before)
+  cmd_paru
+  cmd_mise
+  local after
+  after=$(versions_before)
+  # Only report changed components the user must act on.
+  [[ "$(printf '%s' "$before" | grep '^pi=')" != "$(printf '%s' "$after" | grep '^pi=')" ]] && UPGRADED_PI="$(printf '%s' "$after" | grep '^pi=')"
+  [[ "$(printf '%s' "$before" | grep '^herdr=')" != "$(printf '%s' "$after" | grep '^herdr=')" ]] && UPGRADED_HERDR="$(printf '%s' "$after" | grep '^herdr=')"
+  [[ "$(printf '%s' "$before" | grep '^bun=')" != "$(printf '%s' "$after" | grep '^bun=')" ]] && UPGRADED_BUN="$(printf '%s' "$after" | grep '^bun=')"
+  cmd_pi
+  cmd_verify
+}
+
+usage() {
+  awk 'NR == 1 { next } /^# ?/ { sub(/^# ?/, ""); print; next } { exit }' "$0"
+  exit 0
+}
+
+case "${1:-full}" in
+  full|"")   cmd_full ;;
+  paru)      cmd_paru ;;
+  mise)      cmd_mise ;;
+  rust)      cmd_rust ;;
+  agents)    cmd_agents ;;
+  pi)        cmd_pi ;;
+  status)    cmd_status ;;
+  verify)    cmd_verify ;;
+  help|-h|--help) usage ;;
+  *) die "unknown subcommand: $1 (see sysup help)" ;;
+esac

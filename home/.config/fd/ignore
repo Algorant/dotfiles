@@ -1,0 +1,10 @@
+.git
+.cache
+.local
+.rustup
+.fly
+.librewolf
+.npm
+.steam
+.zoom
+node_modules

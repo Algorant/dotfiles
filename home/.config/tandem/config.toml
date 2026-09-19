@@ -1,0 +1,8 @@
+# Tandem user config managed by Algodots.
+# Stowed to ~/.config/tandem/config.toml.
+#
+# This is the normal machine-wide TUI preference. Individual workspaces only
+# need .tandem/theme.toml when they intentionally override this default.
+theme = "verdigris"
+transparent_background = true
+badge_style = "muted"

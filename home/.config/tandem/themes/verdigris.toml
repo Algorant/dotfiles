@@ -1,0 +1,17 @@
+# Tandem Verdigris TUI theme preset managed by Algodots.
+# Stowed to ~/.config/tandem/themes/verdigris.toml.
+#
+# This keeps Tandem on its Verdigris palette while allowing terminal
+# transparency/compositor backgrounds to show through where the TUI supports it.
+base = "verdigris"
+name = "verdigris"
+transparent_background = true
+
+# Board workflow-state chips. TODO intentionally keeps the muted fallback.
+[aliases]
+burnt-copper = "#c96f3d"
+heather = "#ad8294"
+
+[badges.states]
+in-progress = "burnt-copper"
+validation = "heather"
