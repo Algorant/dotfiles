@@ -36,3 +36,9 @@ rows = [
   ["state_icon", "$agent_tree_row", "workspace", "tab"],
   [{ token = "agent", dim = true }, { token = "machine", dim = true }],
 ]
+
+[[keys.command]]
+key = "prefix+alt+t"
+type = "shell"
+description = "Toggle Agent Tree ordering on or off"
+command = "/home/user/.local/share/mise/installs/herdr/latest/herdr plugin action invoke agent-tree.toggle"
