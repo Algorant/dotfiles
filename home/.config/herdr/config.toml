@@ -38,7 +38,7 @@ rows = [
 ]
 
 [[keys.command]]
-key = "prefix+alt+t"
+key = "prefix+t"
 type = "shell"
 description = "Toggle Agent Tree ordering on or off"
 command = "/home/user/.local/share/mise/installs/herdr/latest/herdr plugin action invoke agent-tree.toggle"

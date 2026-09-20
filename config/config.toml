@@ -165,7 +165,6 @@ builtin = "history-watch"
 "~/.config/zsh/functions.zsh" = { mode = "track" }
 "~/.config/zsh/pi-command-env.zsh" = { mode = "track" }
 "~/.config/zsh/tools.zsh" = { mode = "track" }
-"~/.local/bin/fnox-proton-secret" = { mode = "track" }
 "~/.local/bin/ketch-sync" = { mode = "track" }
 "~/.local/bin/noctalia-notify-proxy" = { mode = "track", variants = [{ profile = "laptop" }] }
 "~/.local/bin/sysup" = { mode = "track" }
