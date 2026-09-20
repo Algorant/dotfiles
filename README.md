@@ -17,7 +17,7 @@ My [arch linux](https://archlinux.org/) setup, managed with `sysup` and [mise](h
 - **mise:** [config](config/config.toml) | [project](https://mise.jdx.dev/) — manages development tools and the dotfiles setup
   - **profiles:** [config](config/config.toml) — share a common base while allowing different configuration for each kind of machine
   - **bootstrap:** [config](config/config.toml) | [project](https://jdx.dev/posts/2026-09-07-dotfiles-that-save-themselves/) — tracks live configuration and syncs saved changes without manually managing Git commits
-  - **fnox:** [project](https://fnox.jdx.dev/) — planned secrets-management integration
+  - **fnox:** [project](https://fnox.jdx.dev/) — resolves Proton Pass references for migrated consumers
 
 ## profiles
 
@@ -29,7 +29,7 @@ Most configuration is shared. Profiles define what is unique to a particular sys
 
 ## what this repository is
 
-This is a generated snapshot of the configuration I actually run, published from a private source repository. Identity, secrets, host access, and personal helper scripts are tracked privately and never published, so `config/config.toml` declares a few tracked paths whose files are intentionally absent here: git identity, the secretspec manifests, `ketch-sync`, and SSH configuration. Usernames, home paths, hostnames, locations, and hardware names are replaced with generic examples.
+This is a generated snapshot of the configuration I actually run, published from a private source repository. Identity, secrets, host access, and credential integration metadata are tracked privately and never published, so `config/config.toml` declares a few tracked paths whose files are intentionally absent here: git identity, fnox manifests, `ketch-sync`, and SSH configuration. Usernames, home paths, hostnames, locations, and hardware names are replaced with generic examples.
 
 ## tools and software
 

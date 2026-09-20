@@ -36,6 +36,10 @@ worktrunk = "latest"
 
 "aqua:schollz/croc" = "latest"
 
+# Scriptify interactive UI (confirm/choose/spin). Rolling latest; Pi skill
+# falls back to echo/read when gum is missing or there is no TTY.
+"aqua:charmbracelet/gum" = "latest"
+
 "github:ProtonPass/pass-cli" = "latest"
 
 # fnox resolves approved Proton Pass references; SecretSpec remains installed
@@ -148,7 +152,6 @@ builtin = "history-watch"
 "~/.config/nvim/theme-test/sample.rs" = { mode = "track" }
 "~/.config/nvim/theme-test/sample.sh" = { mode = "track" }
 "~/.config/paru/paru.conf" = { mode = "track" }
-"~/.config/secretspec/manifests/ketch.toml" = { mode = "track" }
 "~/.config/starship.toml" = { mode = "track" }
 "~/.config/tandem/config.toml" = { mode = "track" }
 "~/.config/tandem/themes/verdigris.toml" = { mode = "track" }
