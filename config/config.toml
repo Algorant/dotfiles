@@ -38,8 +38,8 @@ worktrunk = "latest"
 
 "github:ProtonPass/pass-cli" = "latest"
 
-# fnox (jdx) is evaluation-only for now: a possible SecretSpec replacement.
-# Secret values stay on the Proton Pass/SecretSpec workflow until decided.
+# fnox resolves approved Proton Pass references; SecretSpec remains installed
+# only while repository consumers such as ffsync still depend on it.
 "github:jdx/fnox" = "latest"
 
 # flyctl moved here from AUR; aqua ships both the flyctl and fly names.
@@ -91,6 +91,7 @@ builtin = "history-watch"
 "~/.config/fastfetch/icons/arch-verdigris/arch-verdigris-patina.png" = { mode = "track" }
 "~/.config/fastfetch/icons/arch-verdigris/arch-verdigris-vellum.png" = { mode = "track" }
 "~/.config/fd/ignore" = { mode = "track" }
+"~/.config/fnox/manifests/ketch.toml" = { mode = "track" }
 "~/.config/fuzzel/fuzzel.ini" = { mode = "track", variants = [{ profile = "laptop" }] }
 "~/.config/ghostty/config" = { mode = "track" }
 "~/.config/ghostty/themes/Verdigris" = { mode = "track" }
@@ -164,8 +165,9 @@ builtin = "history-watch"
 "~/.config/zsh/functions.zsh" = { mode = "track" }
 "~/.config/zsh/pi-command-env.zsh" = { mode = "track" }
 "~/.config/zsh/tools.zsh" = { mode = "track" }
-"~/.local/bin/noctalia-notify-proxy" = { mode = "track", variants = [{ profile = "laptop" }] }
+"~/.local/bin/fnox-proton-secret" = { mode = "track" }
 "~/.local/bin/ketch-sync" = { mode = "track" }
+"~/.local/bin/noctalia-notify-proxy" = { mode = "track", variants = [{ profile = "laptop" }] }
 "~/.local/bin/sysup" = { mode = "track" }
 "~/.local/share/applications/avahi-discover.desktop" = { mode = "track", variants = [{ profile = "laptop" }] }
 "~/.local/share/applications/bssh.desktop" = { mode = "track", variants = [{ profile = "laptop" }] }
