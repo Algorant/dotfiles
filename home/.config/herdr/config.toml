@@ -16,7 +16,7 @@ peach = "#e6bf86"   # ochre: warning / interrupted states
 text = "#ebdbb2"    # vellum: main text
 
 [ui.toast]
-delivery = "herdr"
+delivery = "system"
 
 [ui]
 show_agent_labels_on_pane_borders = false
