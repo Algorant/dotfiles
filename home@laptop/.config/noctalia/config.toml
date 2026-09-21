@@ -214,7 +214,3 @@ position = "top_right"
 scale = 1.0
 show_actions = true
 show_app_name = true
-
-[audio]
-enable_sounds = true
-sound_volume = 0.5

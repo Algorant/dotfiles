@@ -16,7 +16,7 @@ peach = "#e6bf86"   # ochre: warning / interrupted states
 text = "#ebdbb2"    # vellum: main text
 
 [ui.toast]
-delivery = "system"
+delivery = "off"
 
 [ui]
 show_agent_labels_on_pane_borders = false
@@ -42,6 +42,3 @@ key = "prefix+t"
 type = "shell"
 description = "Toggle Agent Tree ordering on or off"
 command = "/home/user/.local/share/mise/installs/herdr/latest/herdr plugin action invoke agent-tree.toggle"
-
-[ui.sound]
-enabled = false
