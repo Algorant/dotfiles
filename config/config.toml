@@ -40,6 +40,9 @@ worktrunk = "latest"
 # falls back to echo/read when gum is missing or there is no TTY.
 "aqua:charmbracelet/gum" = "latest"
 
+# Jujutsu for a Git-replacement trial. Rolling latest. Not a production cutover.
+"aqua:jj-vcs/jj" = "latest"
+
 "github:ProtonPass/pass-cli" = "latest"
 
 # fnox resolves approved Proton Pass references; SecretSpec remains installed
