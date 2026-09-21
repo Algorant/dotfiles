@@ -99,6 +99,7 @@ builtin = "history-watch"
 "~/.config/fastfetch/icons/arch-verdigris/arch-verdigris-vellum.png" = { mode = "track" }
 "~/.config/fd/ignore" = { mode = "track" }
 "~/.config/fnox/manifests/ketch.toml" = { mode = "track" }
+"~/.config/fnox/manifests/transfers.toml" = { mode = "track" }
 "~/.config/fuzzel/fuzzel.ini" = { mode = "track", variants = [{ profile = "laptop" }] }
 "~/.config/ghostty/config" = { mode = "track" }
 "~/.config/ghostty/themes/Verdigris" = { mode = "track" }
