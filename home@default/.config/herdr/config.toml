@@ -1,0 +1,44 @@
+onboarding = false
+
+[theme]
+name = "gruvbox"
+
+[theme.custom]
+# Verdigris overrides on top of Herdr's built-in Gruvbox palette.
+# Palette source: https://github.com/Algorant/verdigris
+accent = "#e6bf86"  # ochre: active borders / primary highlight
+yellow = "#e6bf86"  # ochre: working / running states
+green = "#8ec07c"   # fern: brighter idle / done states
+teal = "#8ec07c"    # fern: bright verdigris marker
+blue = "#83a598"    # aqua: git change / cool notification color
+mauve = "#83a598"   # aqua: branch / special label
+peach = "#e6bf86"   # ochre: warning / interrupted states
+text = "#ebdbb2"    # vellum: main text
+
+[ui.toast]
+delivery = "system"
+
+[ui]
+show_agent_labels_on_pane_borders = false
+
+agent_panel_sort = "spaces"
+[[keys.command]]
+key = "prefix+alt+n"
+type = "shell"
+description = "create new templated space"
+command = "herdr-new-space --git-cmd lazygit"
+
+[experimental]
+kitty_graphics = true
+
+[ui.sidebar.agents]
+rows = [
+  ["state_icon", "$agent_tree_row", "workspace", "tab"],
+  [{ token = "agent", dim = true }, { token = "machine", dim = true }],
+]
+
+[[keys.command]]
+key = "prefix+t"
+type = "shell"
+description = "Toggle Agent Tree ordering on or off"
+command = "/home/user/.local/share/mise/installs/herdr/latest/herdr plugin action invoke agent-tree.toggle"

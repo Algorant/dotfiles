@@ -79,7 +79,7 @@ This is a generated snapshot of the configuration I actually run, published from
 ### agents
 
 - Pi: [config](config/config.toml) | [project](https://github.com/earendil-works/pi)
-- Herdr: [config](home/.config/herdr/config.toml) | [project](https://github.com/Algorant/herdr)
+- Herdr: [desktop config](home@desktop/.config/herdr/config.toml) | [laptop config](home@laptop/.config/herdr/config.toml) | [project](https://github.com/Algorant/herdr)
 - Tandem: [config](home/.config/tandem/) | [project](https://github.com/Algorant/tandem)
 - Sideshow: [config](config/config.toml) | [project](https://github.com/modem-dev/sideshow)
 - Claude Code: [config](config/config.toml) | [project](https://github.com/anthropics/claude-code)

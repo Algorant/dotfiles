@@ -104,7 +104,9 @@ builtin = "history-watch"
 "~/.config/ghostty/themes/Verdigris" = { mode = "track" }
 "~/.config/git/config" = { mode = "track" }
 "~/.config/git/ignore" = { mode = "track" }
-"~/.config/herdr/config.toml" = { mode = "track" }
+# Desktop and laptop keep independent Herdr history; server and work retain
+# the existing shared default stream.
+"~/.config/herdr/config.toml" = { mode = "track", variants = [{ profile = "desktop" }, { profile = "laptop" }, { default = true }] }
 "~/.config/lsd/colors.yaml" = { mode = "track" }
 "~/.config/lsd/config.yaml" = { mode = "track" }
 "~/.config/mise/config.toml" = { mode = "track" }
