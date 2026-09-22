@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # sysup — one routine for "update everything" (toolchain-plan 06, agreed 2026-09-01)
 #
-#   sysup            full cycle: paru -Syu -> mise (cache clear + upgrade, Rust excluded) -> Pi checkout + pi-update -> verify
+#   sysup            full cycle: paru -Syu -> mise (cache clear + upgrade, Rust excluded) -> canonical Pi checkout pull + native package update -> verify
 #   sysup paru       only the system/AUR upgrade (--noconfirm, sudo)
 #   sysup mise       only mise: cache clear + mise upgrade --exclude rust (coding agents excluded too)
 #   sysup agents     update and verify Claude Code, Codex, OpenCode, and Copilot together
 #   sysup rust       only Rust: mise upgrade rust (opt-in; routine updates leave Rust alone)
-#   sysup pi         only the Pi checkout fast-forward and public pi-update composite
+#   sysup pi         only the canonical Pi checkout pull and native package update
 #   sysup status     read-only: pending updates and current versions
 #   sysup verify     tool verification + restart reminders
 #
@@ -18,8 +18,6 @@
 # The coding-agent group is also opt-in; run `sysup agents` to update it.
 # Run `sysup rust` explicitly to upgrade the compiler.
 set -euo pipefail
-
-SYS_END="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/bin/pi-update"
 
 # mise has no native groups. Keep this list authoritative for the opt-in
 # coding-agent update set and for its default-upgrade exclusions.
@@ -73,16 +71,34 @@ cmd_rust() {
   mise upgrade rust
 }
 
+pi_layout_ok() {
+  local repo="$1"
+  [[ -d "$repo/agent" && -d "$repo/agent/extensions" && -d "$repo/agent/skills" ]]
+}
+
 cmd_pi() {
   command -v git >/dev/null || die "git not found"
-  [[ -x "$SYS_END" ]] || die "pi-update not found at $SYS_END"
-  local pi_repo="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/.."
-  say "Pi checkout update (git pull --ff-only)"
-  if ! git -C "$pi_repo" pull --ff-only; then
-    die "Pi checkout update failed at $pi_repo"
-  fi
-  say "Pi composite update (pi-update)"
-  "$SYS_END"
+  command -v pi >/dev/null || die "pi not found"
+  # Canonical checkout only: never route the repository through the legacy
+  # PI_CODING_AGENT_DIR variable, and never follow a symlinked ~/.pi.
+  local pi_repo="$HOME/.pi"
+  [[ ! -L "$pi_repo" ]] \
+    || die "Pi checkout must be a real directory, not a symlink: $pi_repo"
+  local root toplevel origin
+  root=$(cd "$pi_repo" 2>/dev/null && pwd -P) || die "canonical Pi checkout not found at $pi_repo"
+  toplevel=$(git -C "$pi_repo" rev-parse --show-toplevel 2>/dev/null) \
+    || die "not a git checkout: $pi_repo"
+  [[ "$toplevel" == "$root" ]] || die "Pi checkout root is $toplevel, expected $pi_repo"
+  origin=$(git -C "$pi_repo" remote get-url origin 2>/dev/null) \
+    || die "no origin in $pi_repo"
+  [[ "$origin" == "git@github.com:Algorant/.pi.git" ]] \
+    || die "unexpected Pi origin: $origin (expected git@github.com:Algorant/.pi.git)"
+  pi_layout_ok "$pi_repo" || die "native Pi layout missing under $pi_repo/agent"
+  say "Pi checkout update (git -C $pi_repo pull --ff-only)"
+  git -C "$pi_repo" pull --ff-only || die "Pi checkout update failed at $pi_repo"
+  pi_layout_ok "$pi_repo" || die "native Pi layout missing after update in $pi_repo"
+  say "Pi package update (pi update --extensions)"
+  pi update --extensions
 }
 
 cmd_status() {
@@ -151,7 +167,7 @@ cmd_verify() {
   v "tandem" tandem --version
   v "worktrunk" wt --version
   echo "Tools: $passed/$total passed."
-  [[ -n "$UPGRADED_PI" ]]    && echo "> pi changed ($UPGRADED_PI) — RESTART Pi, then /config-check"
+  [[ -n "$UPGRADED_PI" ]]    && echo "> pi changed ($UPGRADED_PI) — restart Pi to run the new binary"
   [[ -n "$UPGRADED_HERDR" ]] && echo "> herdr changed ($UPGRADED_HERDR) — restart herdr (your terminal host)"
   [[ -n "$UPGRADED_BUN" ]]   && echo "> bun changed ($UPGRADED_BUN) — restart dependent daemons (sideshow)"
   return "$local_status"
