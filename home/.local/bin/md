@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# md — search the Obsidian vault through Obsidian's own index and read notes in leaf.
+#
+#   md               open the picker: recent notes first, type 3+ chars to search
+#   md --set-vault   ask the Obsidian CLI for the vault location and save it
+#   md --vault       print the saved vault location
+#
+# Picker keys: Enter leaf (rooted in the vault) · Ctrl-E nvim · Ctrl-R refresh ·
+# Ctrl-U clear (back to recent notes) · Esc quit.
+#
+# The vault location is asked of the Obsidian CLI once and saved machine-locally;
+# if it moves, md stops and tells you to re-run --set-vault. Searches need the
+# Obsidian app running, so md starts it (Windows side on WSL) when it is not.
+set -euo pipefail
+
+state_file="${XDG_STATE_HOME:-$HOME/.local/state}/md/vault"
+
+die() { printf 'md: %s\n' "$*" >&2; exit 1; }
+is_wsl() { [[ -e /proc/sys/fs/binfmt_misc/WSLInterop ]]; }
+
+obsidian_running() {
+  if is_wsl; then
+    # Capture first: grep -q exiting early would SIGPIPE tasklist and fail under pipefail.
+    local procs
+    procs=$(cd /mnt/c && tasklist.exe /FI "IMAGENAME eq Obsidian.exe" /NH 2>/dev/null)
+    grep -qi '^Obsidian\.exe' <<<"$procs"
+  else
+    # Arch's obsidian package runs the app as electron + /usr/lib/obsidian/app.asar.
+    pgrep -f '/obsidian/app\.asar' >/dev/null
+  fi
+}
+
+start_obsidian() {
+  if is_wsl; then
+    (cd /mnt/c && cmd.exe /c start "" "obsidian://open" >/dev/null 2>&1)
+  else
+    setsid -f obsidian >/dev/null 2>&1
+  fi
+}
+
+ensure_obsidian() {
+  command -v obsidian >/dev/null || die "Obsidian CLI (obsidian) not found"
+  obsidian_running && return
+  printf 'md: starting Obsidian…\n' >&2
+  start_obsidian
+  local _
+  for _ in $(seq 60); do
+    sleep 0.5
+    obsidian_running && [[ -n $(obsidian vault info=path 2>/dev/null) ]] && return
+  done
+  die "Obsidian did not become ready within 30s"
+}
+
+set_vault() {
+  ensure_obsidian
+  local raw path
+  raw=$(obsidian vault info=path)
+  raw=${raw%$'\r'}
+  [[ -n $raw ]] || die "Obsidian CLI returned no vault path"
+  if is_wsl; then path=$(wslpath -u "$raw"); else path=$raw; fi
+  [[ -d $path ]] || die "vault reported by Obsidian does not exist: $path"
+  mkdir -p "${state_file%/*}"
+  printf '%s\n' "$path" >"$state_file"
+  printf 'md: vault saved: %s\n' "$path" >&2
+}
+
+load_vault() {
+  [[ -f $state_file ]] || set_vault
+  vault=$(<"$state_file")
+  [[ -d $vault ]] || die "saved vault not found: $vault (run: md --set-vault)"
+}
+
+pick() {
+  load_vault
+  ensure_obsidian
+  cd "$vault"
+  # Below 3 chars show recent notes. Searches are debounced 0.25s: fzf cancels a
+  # superseded reload before it reaches Obsidian, and 1–2 char searches are slow
+  # (0.6–4s) and keep running on the Obsidian side even after cancellation.
+  local run="q={q}; [ \${#q} -ge 3 ] || exec obsidian recents; obsidian search query=\"\$q\" limit=200 | grep -vx 'No matches found.'"
+  fzf --disabled --with-shell 'bash -c' --prompt 'md> ' \
+    --header 'recent notes · type 3+ chars to search · Enter leaf · Ctrl-E nvim · Ctrl-R refresh · Ctrl-U clear' \
+    --bind 'start:reload:obsidian recents' \
+    --bind "change:reload:sleep 0.25; $run" \
+    --bind "ctrl-r:reload:$run" \
+    --preview 'leaf --inline ansi:$FZF_PREVIEW_COLUMNS {}' \
+    --preview-window 'right,60%,border-left' \
+    --bind 'enter:become(leaf {})' \
+    --bind 'ctrl-e:become(nvim {})'
+}
+
+case "${1:-}" in
+  "") pick ;;
+  --set-vault) set_vault ;;
+  --vault) load_vault; printf '%s\n' "$vault" ;;
+  -h|--help) awk 'NR == 1 { next } /^# ?/ { sub(/^# ?/, ""); print; next } { exit }' "$0" ;;
+  *) die "unknown argument: $1 (see md --help)" ;;
+esac

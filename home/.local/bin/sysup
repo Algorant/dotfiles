@@ -162,6 +162,8 @@ cmd_verify() {
   v "obscura" obscura --version
   v "ketch doctor" ketch doctor
   v "croc" croc --version
+  v "leaf" leaf --version
+  v "md (Obsidian vault picker)" md --help
   v "flyctl" flyctl version
   v "playwright-cli" playwright-cli --version
   v "Claude Code" claude --version

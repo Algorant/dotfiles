@@ -180,6 +180,7 @@ builtin = "history-watch"
 "~/.config/zsh/pi-command-env.zsh" = { mode = "track" }
 "~/.config/zsh/tools.zsh" = { mode = "track" }
 "~/.local/bin/ketch-sync" = { mode = "track" }
+"~/.local/bin/md" = { mode = "track" }
 "~/.local/bin/noctalia-notify-proxy" = { mode = "track", variants = [{ profile = "laptop" }] }
 "~/.local/bin/sysup" = { mode = "track" }
 "~/.local/share/applications/avahi-discover.desktop" = { mode = "track", variants = [{ profile = "laptop" }] }
