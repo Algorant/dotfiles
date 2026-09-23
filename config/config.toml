@@ -36,6 +36,9 @@ worktrunk = "latest"
 
 "aqua:schollz/croc" = "latest"
 
+# Terminal Markdown previewer; prebuilt GitHub release binaries.
+"github:rivolink/leaf" = "latest"
+
 # Scriptify interactive UI (confirm/choose/spin). Rolling latest; Pi skill
 # falls back to echo/read when gum is missing or there is no TTY.
 "aqua:charmbracelet/gum" = "latest"

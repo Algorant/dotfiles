@@ -20,8 +20,15 @@
 set -euo pipefail
 
 # mise has no native groups. Keep this list authoritative for the opt-in
-# coding-agent update set and for its default-upgrade exclusions.
-readonly CODING_AGENT_TOOLS=(claude codex opencode copilot)
+# coding-agent update set and for its default-upgrade exclusions. Use the exact
+# global config keys: mise upgrade and --exclude do not resolve registry short
+# names (claude, codex, ...) to these aqua: entries.
+readonly CODING_AGENT_TOOLS=(
+  aqua:anthropics/claude-code
+  aqua:openai/codex
+  aqua:anomalyco/opencode
+  aqua:github/copilot-cli
+)
 
 say()  { printf '\n== %s ==\n' "$*"; }
 die()  { printf '\nERROR: %s\n' "$*" >&2; exit 1; }
