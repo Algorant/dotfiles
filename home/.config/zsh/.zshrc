@@ -112,6 +112,7 @@ alias ll="lsd -l --group-dirs first"
 alias la="lsd -la --group-dirs first"
 alias cat="bat"
 alias man="batman"
+alias lcat="leaf --inline"   # rendered Markdown to stdout; cat/bat stay as-is
 alias tree="tree -aC -I '.git'"
 alias tr="tree -aC -L 2 -I '.git'"
 alias duf="duf --only local"

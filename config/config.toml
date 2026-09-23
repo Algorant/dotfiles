@@ -111,6 +111,8 @@ builtin = "history-watch"
 # Desktop and laptop keep independent Herdr history; server and work retain
 # the existing shared default stream.
 "~/.config/herdr/config.toml" = { mode = "track", variants = [{ profile = "desktop" }, { profile = "laptop" }, { default = true }] }
+"~/.config/leaf/config.toml" = { mode = "track" }
+"~/.config/leaf/themes/verdigris.toml" = { mode = "track" }
 "~/.config/lsd/colors.yaml" = { mode = "track" }
 "~/.config/lsd/config.yaml" = { mode = "track" }
 "~/.config/mise/config.toml" = { mode = "track" }
