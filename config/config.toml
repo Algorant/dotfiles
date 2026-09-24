@@ -167,6 +167,7 @@ builtin = "history-watch"
 "~/.config/tandem/config.toml" = { mode = "track" }
 "~/.config/tandem/themes/verdigris.toml" = { mode = "track" }
 "~/.config/theme_colors/gruvbox_colors.css" = { mode = "track" }
+"~/.config/theme_colors/verdigris-gum.sh" = { mode = "track" }
 "~/.config/theme_colors/verdigris.css" = { mode = "track" }
 "~/.config/wireplumber/wireplumber.conf.d/51-keep-built-in-audio-awake.conf" = { mode = "track", variants = [{ profile = "laptop" }] }
 "~/.config/worktrunk/config.toml" = { mode = "track" }
