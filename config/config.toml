@@ -196,6 +196,7 @@ builtin = "history-watch"
 "~/.local/share/applications/system-config-printer.desktop" = { mode = "track", variants = [{ profile = "laptop" }] }
 "~/.local/share/dbus-1/services/org.freedesktop.Notifications.service" = { mode = "track", variants = [{ profile = "laptop" }] }
 "~/.local/share/icons/hicolor/512x512/apps/herdr.png" = { mode = "track" }
+"~/.ssh/config.d/hosts.conf" = { mode = "track" }
 "~/.ssh/config.d/terminal.conf" = { mode = "track" }
 "~/.zshenv" = { mode = "track" }
 
