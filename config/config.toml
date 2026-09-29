@@ -20,7 +20,9 @@ rust = { version = "nightly", components = ["rust-src"] }
 
 herdr = "latest"
 
-worktrunk = "latest"
+# Explicit backend: a mise registry change (aqua -> packslip, 2026-09-29) once
+# silently switched the short name and left the `wt` shim with no binary.
+"packslip:github.com/max-sixty/worktrunk" = "latest"
 
 "cargo:emeraldian" = "latest"
 
