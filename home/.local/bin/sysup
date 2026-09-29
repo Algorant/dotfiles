@@ -6,7 +6,7 @@
 #   sysup mise       only mise: cache clear + mise upgrade --exclude rust (coding agents excluded too)
 #   sysup agents     update and verify Claude Code, Codex, OpenCode, and Copilot together
 #   sysup rust       only Rust: mise upgrade rust (opt-in; routine updates leave Rust alone)
-#   sysup pi         only the canonical Pi checkout pull and native package update
+#   sysup pi         only Pi: mise upgrade pi (binary) + canonical checkout pull + native package update
 #   sysup status     read-only: pending updates and current versions
 #   sysup verify     tool verification + restart reminders
 #
@@ -83,7 +83,8 @@ pi_layout_ok() {
   [[ -d "$repo/agent" && -d "$repo/agent/extensions" && -d "$repo/agent/skills" ]]
 }
 
-cmd_pi() {
+# Preflight the canonical checkout before any Pi change.
+pi_checkout_preflight() {
   command -v git >/dev/null || die "git not found"
   command -v pi >/dev/null || die "pi not found"
   # Canonical checkout only: never route the repository through the legacy
@@ -101,11 +102,32 @@ cmd_pi() {
   [[ "$origin" == "git@github.com:Algorant/.pi.git" ]] \
     || die "unexpected Pi origin: $origin (expected git@github.com:Algorant/.pi.git)"
   pi_layout_ok "$pi_repo" || die "native Pi layout missing under $pi_repo/agent"
+}
+
+# Pull the canonical checkout, re-verify its layout, then update Pi packages.
+pi_checkout_update() {
+  local pi_repo="$HOME/.pi"
   say "Pi checkout update (git -C $pi_repo pull --ff-only)"
   git -C "$pi_repo" pull --ff-only || die "Pi checkout update failed at $pi_repo"
   pi_layout_ok "$pi_repo" || die "native Pi layout missing after update in $pi_repo"
   say "Pi package update (pi update --extensions)"
   pi update --extensions
+}
+
+# `sysup pi`: mise owns the Pi binary (Pi cannot self-update it), so upgrade it
+# before the checkout and package update. The full cycle's mise step already
+# upgrades it.
+cmd_pi() {
+  command -v mise >/dev/null || die "mise not found"
+  pi_checkout_preflight
+  local before after
+  before=$(pi --version 2>/dev/null | tr '\n' ' ')
+  say "Pi binary upgrade (mise upgrade pi)"
+  mise upgrade pi
+  after=$(pi --version 2>/dev/null | tr '\n' ' ')
+  pi_checkout_update
+  [[ "$before" != "$after" ]] && echo "> pi changed ($before-> $after) — restart Pi to run the new binary"
+  return 0
 }
 
 cmd_status() {
@@ -193,7 +215,8 @@ cmd_full() {
   [[ "$(printf '%s' "$before" | grep '^pi=')" != "$(printf '%s' "$after" | grep '^pi=')" ]] && UPGRADED_PI="$(printf '%s' "$after" | grep '^pi=')"
   [[ "$(printf '%s' "$before" | grep '^herdr=')" != "$(printf '%s' "$after" | grep '^herdr=')" ]] && UPGRADED_HERDR="$(printf '%s' "$after" | grep '^herdr=')"
   [[ "$(printf '%s' "$before" | grep '^bun=')" != "$(printf '%s' "$after" | grep '^bun=')" ]] && UPGRADED_BUN="$(printf '%s' "$after" | grep '^bun=')"
-  cmd_pi
+  pi_checkout_preflight
+  pi_checkout_update
   cmd_verify
 }
 

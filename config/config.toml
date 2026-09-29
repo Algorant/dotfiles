@@ -77,6 +77,9 @@ worktrunk = "latest"
 npm.package_manager = "bun"
 # This machine deliberately follows absolute latest without mise's 24h delay.
 minimum_release_age = "0s"
+# Always fetch fresh remote version lists; mise's default 1h cache otherwise
+# hides releases from outdated/upgrade until it expires.
+fetch_remote_versions_cache = "0s"
 
 # Automatic native dotfile history. Machine identity stays in miserc.toml.
 [settings.history]
