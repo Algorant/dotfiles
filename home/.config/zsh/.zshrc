@@ -154,7 +154,12 @@ function nv() {
 # Startup
 # -----------------------------------------------------------------------------
 
-fastfetch
+# Skip the banner only if input is already waiting (e.g. Herdr typing `pi --session …`
+# into a restored pane); every normal new terminal still gets the full fastfetch.
+zmodload zsh/zselect
+if ! zselect -t 0 -r 0 2>/dev/null; then
+  fastfetch
+fi
 
 # Prompt and shell integrations. Keep at the end of the file.
 eval "$(starship init zsh)"
