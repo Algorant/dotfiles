@@ -16,10 +16,11 @@ peach = "#e6bf86"   # ochre: warning / interrupted states
 text = "#ebdbb2"    # vellum: main text
 
 [ui.toast]
-delivery = "system"
+delivery = "herdr"
 
 [ui]
 show_agent_labels_on_pane_borders = false
+prompt_new_tab_name = false
 
 agent_panel_sort = "spaces"
 [[keys.command]]
@@ -32,10 +33,7 @@ command = "herdr-new-space --git-cmd lazygit"
 kitty_graphics = true
 
 [ui.sidebar.agents]
-rows = [
-  ["state_icon", "$agent_tree_row", "workspace", "tab"],
-  [{ token = "agent", dim = true }, { token = "machine", dim = true }],
-]
+rows = [["state_icon", "$agent_tree_branch", "workspace", "tab"]]
 
 [[keys.command]]
 key = "prefix+t"
